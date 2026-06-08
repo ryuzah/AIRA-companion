@@ -11,10 +11,27 @@ class OllamaClient {
   }
 
   // Generate response from Ollama
-  async generateResponse(prompt, context = []) {
+  async generateResponse(prompt, context = [], systemPrompt = null) {
     try {
-      // Build messages array with context
+      // Build messages array with system prompt and context
+      const defaultSystemPrompt = `You are Companion, a helpful AI assistant.
+
+User Information:
+- Location: Melbourne, Australia
+- Timezone: UTC+10 (Australian Eastern Time)
+
+When the user asks about weather:
+- Always provide Melbourne weather information
+- If you don't have real-time data, suggest checking weather.com or bom.gov.au (Bureau of Meteorology)
+- Remember the user is in Melbourne
+
+Be friendly, helpful, and conversational.`;
+
       const messages = [
+        {
+          role: 'system',
+          content: systemPrompt || defaultSystemPrompt
+        },
         ...context,
         { role: 'user', content: prompt }
       ];
