@@ -94,8 +94,58 @@ class DiscordCompanion {
           try {
             await message.reply('🔊 Speaking...');
             await this.speakInVoice(guildId, textToSpeak);
+            await message.reply('✓ Done speaking!');
           } catch (error) {
+            console.error('Error speaking:', error);
             await message.reply(`❌ Error speaking: ${error.message}`);
+          }
+          return;
+        }
+
+        // Handle speak with question (generate response then speak)
+        if (messageContent.toLowerCase().startsWith('speak ')) {
+          const guildId = message.guild.id;
+          if (!this.voiceConnections.has(guildId)) {
+            await message.reply('❌ I\'m not in a voice channel. Use `@Companion join` first!');
+            return;
+          }
+
+          const userId = message.author.id;
+          const question = messageContent.replace(/^speak\s+/i, '').trim();
+
+          try {
+            await message.reply('🤔 Thinking and speaking...');
+
+            // Add user message to memory
+            this.memoryManager.addMessage(userId, 'user', question);
+
+            // Get conversation context
+            const context = this.memoryManager.getContextForAI(userId, 10);
+
+            // Check if user is asking about weather
+            let weatherData = null;
+            if (question.toLowerCase().includes('weather') || question.toLowerCase().includes('forecast')) {
+              const weatherService = new WeatherService();
+              weatherData = await weatherService.getMelbourneWeather();
+            }
+
+            // Generate response
+            const response = await this.ollamaClient.generateResponse(
+              question,
+              context,
+              null,
+              weatherData
+            );
+
+            // Add AI response to memory
+            this.memoryManager.addMessage(userId, 'assistant', response);
+
+            // Speak the response
+            await this.speakInVoice(guildId, response);
+            await message.reply('✓ Done speaking!');
+          } catch (error) {
+            console.error('Error speaking response:', error);
+            await message.reply(`❌ Error: ${error.message}`);
           }
           return;
         }
