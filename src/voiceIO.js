@@ -77,14 +77,14 @@ class VoiceIO extends EventEmitter {
    */
   async transcribeAudio(audioPath) {
     return new Promise((resolve, reject) => {
-      // Use --device cuda for GPU acceleration if available
+      // Use CPU for Whisper (CUDA support requires additional setup)
+      // Whisper will still be fast with the base model
       const whisper = spawn('whisper', [
         audioPath,
         '--model', this.whisperModel,
         '--output_format', 'txt',
         '--output_dir', this.audioDir,
-        '--language', 'en',
-        '--device', 'cuda'  // Use GPU if available
+        '--language', 'en'
       ]);
 
       let output = '';
