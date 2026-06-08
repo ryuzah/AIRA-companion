@@ -30,7 +30,7 @@ class VoiceIO extends EventEmitter {
       // Try to use the RODE NT-USB microphone first, fall back to default
       const ffmpeg = spawn('ffmpeg', [
         '-f', 'dshow',
-        '-i', 'audio="Microphone (8- RODE NT-USB)"',
+        '-i', 'audio=Microphone (8- RODE NT-USB)',
         '-t', duration.toString(),
         '-acodec', 'pcm_s16le',
         '-ar', this.sampleRate.toString(),
