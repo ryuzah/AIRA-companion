@@ -10,6 +10,7 @@ class VoiceIO extends EventEmitter {
     this.piperVoice = options.piperVoice || 'en_US-amy-medium';
     this.sampleRate = options.sampleRate || 16000;
     this.audioDir = options.audioDir || './audio';
+    this.silenceThreshold = options.silenceThreshold || 1.0; // seconds of silence to stop recording
     
     // Create audio directory if it doesn't exist
     if (!fs.existsSync(this.audioDir)) {
@@ -18,20 +19,21 @@ class VoiceIO extends EventEmitter {
   }
 
   /**
-   * Record audio from microphone using ffmpeg
-   * @param {number} duration - Duration in seconds
+   * Record audio from microphone using ffmpeg with silence detection
+   * @param {number} maxDuration - Maximum duration in seconds
    * @returns {Promise<string>} Path to recorded audio file
    */
-  async recordAudio(duration = 10) {
+  async recordAudio(maxDuration = 10) {
     return new Promise((resolve, reject) => {
       const timestamp = Date.now();
       const audioFile = path.join(this.audioDir, `recording_${timestamp}.wav`);
 
-      // Try to use the RODE NT-USB microphone first, fall back to default
+      // Use silencedetect filter to stop recording when silence is detected
       const ffmpeg = spawn('ffmpeg', [
         '-f', 'dshow',
         '-i', 'audio=Microphone (8- RODE NT-USB)',
-        '-t', duration.toString(),
+        '-t', maxDuration.toString(),
+        '-af', `silencedetect=n=-40dB:d=${this.silenceThreshold}`,
         '-acodec', 'pcm_s16le',
         '-ar', this.sampleRate.toString(),
         '-ac', '1',
@@ -39,13 +41,23 @@ class VoiceIO extends EventEmitter {
       ]);
 
       let errorOutput = '';
+      let silenceDetected = false;
 
       ffmpeg.stderr.on('data', (data) => {
-        errorOutput += data.toString();
+        const output = data.toString();
+        errorOutput += output;
+        
+        // Check for silence detection
+        if (output.includes('silence_end')) {
+          silenceDetected = true;
+          // Kill the process early if silence is detected
+          ffmpeg.kill();
+        }
       });
 
       ffmpeg.on('close', (code) => {
-        if (code === 0) {
+        // Code 0 = normal completion, 255 = killed by us (silence detected)
+        if (code === 0 || code === 255 || silenceDetected) {
           resolve(audioFile);
         } else {
           reject(new Error(`FFmpeg error: ${errorOutput}`));
@@ -59,18 +71,20 @@ class VoiceIO extends EventEmitter {
   }
 
   /**
-   * Transcribe audio using Whisper
+   * Transcribe audio using Whisper with GPU support
    * @param {string} audioPath - Path to audio file
    * @returns {Promise<string>} Transcribed text
    */
   async transcribeAudio(audioPath) {
     return new Promise((resolve, reject) => {
+      // Use --device cuda for GPU acceleration if available
       const whisper = spawn('whisper', [
         audioPath,
         '--model', this.whisperModel,
         '--output_format', 'txt',
         '--output_dir', this.audioDir,
-        '--language', 'en'
+        '--language', 'en',
+        '--device', 'cuda'  // Use GPU if available
       ]);
 
       let output = '';
@@ -189,29 +203,28 @@ class VoiceIO extends EventEmitter {
   /**
    * Full voice interaction: record -> transcribe -> get response -> speak
    * @param {Function} getResponseFn - Function that takes text and returns response
-   * @param {number} recordDuration - Duration to record in seconds
+   * @param {number} maxDuration - Maximum duration to record in seconds
    * @returns {Promise<{input: string, output: string}>}
    */
-  async interactiveVoiceSession(getResponseFn, recordDuration = 10) {
+  async interactiveVoiceSession(getResponseFn, maxDuration = 10) {
     try {
-      console.log('Recording audio...');
-      const audioPath = await this.recordAudio(recordDuration);
+      console.log('🎤 Listening... (speak until silence or max duration)');
+      const audioPath = await this.recordAudio(maxDuration);
 
-      console.log('Transcribing audio...');
+      console.log('📝 Transcribing...');
       const userInput = await this.transcribeAudio(audioPath);
       this.cleanupAudio(audioPath);
 
-      console.log(`User said: ${userInput}`);
+      console.log(`You: ${userInput}`);
 
-      console.log('Generating response...');
+      console.log('🤔 Thinking...');
       const response = await getResponseFn(userInput);
 
-      console.log(`AI response: ${response}`);
+      console.log(`AI: ${response}\n`);
 
-      console.log('Converting to speech...');
+      console.log('🔊 Speaking...');
       const speechPath = await this.textToSpeech(response);
 
-      console.log('Playing response...');
       await this.playAudio(speechPath);
       this.cleanupAudio(speechPath);
 

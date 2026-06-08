@@ -88,7 +88,8 @@ function promptUser() {
 }
 
 async function startVoiceMode() {
-  console.log('\n🎤 Voice Mode - Speak now (10 seconds)...\n');
+  console.log('\n🎤 Voice Mode - Natural Conversation\n');
+  console.log('Speak naturally. The AI will listen until you pause.\n');
 
   try {
     // Check if Ollama is healthy
@@ -100,18 +101,28 @@ async function startVoiceMode() {
     }
 
     const userId = 'voice_user';
-    const result = await voiceIO.interactiveVoiceSession(
-      async (userInput) => {
-        const context = memoryManager.getContextForAI(userId, 10);
-        const response = await ollamaClient.generateResponse(userInput, context);
-        memoryManager.addMessage(userId, 'user', userInput);
-        memoryManager.addMessage(userId, 'assistant', response);
-        return response;
-      },
-      10
-    );
+    
+    // Continuous conversation loop
+    let continueConversation = true;
+    while (continueConversation) {
+      try {
+        const result = await voiceIO.interactiveVoiceSession(
+          async (userInput) => {
+            const context = memoryManager.getContextForAI(userId, 10);
+            const response = await ollamaClient.generateResponse(userInput, context);
+            memoryManager.addMessage(userId, 'user', userInput);
+            memoryManager.addMessage(userId, 'assistant', response);
+            return response;
+          },
+          15  // Max 15 seconds, but stops on silence
+        );
 
-    console.log(`\n✓ Conversation complete`);
+        console.log('\n---\n');
+      } catch (error) {
+        console.error('Error in conversation:', error.message);
+        continueConversation = false;
+      }
+    }
   } catch (error) {
     console.error('❌ Voice mode error:', error.message);
     console.log('\nMake sure you have installed:');
