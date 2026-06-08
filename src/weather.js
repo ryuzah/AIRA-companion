@@ -23,7 +23,7 @@ class WeatherService {
           timezone: 'Australia/Melbourne',
           forecast_days: 1
         },
-        timeout: 5000
+        timeout: 10000
       });
 
       const current = response.data.current;

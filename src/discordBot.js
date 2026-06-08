@@ -77,6 +77,29 @@ class DiscordCompanion {
           return;
         }
 
+        // Handle speak command
+        if (messageContent.toLowerCase().startsWith('speak:')) {
+          const guildId = message.guild.id;
+          if (!this.voiceConnections.has(guildId)) {
+            await message.reply('❌ I\'m not in a voice channel. Use `@Companion join` first!');
+            return;
+          }
+
+          const textToSpeak = messageContent.replace(/^speak:\s*/i, '').trim();
+          if (!textToSpeak) {
+            await message.reply('❌ Please provide text to speak. Example: `@Companion speak: Hello!`');
+            return;
+          }
+
+          try {
+            await message.reply('🔊 Speaking...');
+            await this.speakInVoice(guildId, textToSpeak);
+          } catch (error) {
+            await message.reply(`❌ Error speaking: ${error.message}`);
+          }
+          return;
+        }
+
         // Show typing indicator
         await message.channel.sendTyping();
 
