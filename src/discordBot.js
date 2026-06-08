@@ -3,6 +3,8 @@ const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerSta
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const DiscordVoiceHandler = require('./discordVoice');
+const WeatherService = require('./weather');
 
 class DiscordCompanion {
   constructor(token, ollamaClient, memoryManager, options = {}) {
@@ -54,10 +56,19 @@ class DiscordCompanion {
         // Get conversation context
         const context = this.memoryManager.getContextForAI(userId, 10);
 
+        // Check if user is asking about weather
+        let weatherData = null;
+        if (message.content.toLowerCase().includes('weather') || message.content.toLowerCase().includes('forecast')) {
+          const weatherService = new WeatherService();
+          weatherData = await weatherService.getMelbourneWeather();
+        }
+
         // Generate response
         const response = await this.ollamaClient.generateResponse(
           message.content,
-          context
+          context,
+          null,
+          weatherData
         );
 
         // Add AI response to memory
