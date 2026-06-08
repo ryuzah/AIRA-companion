@@ -29,6 +29,9 @@ Be friendly, helpful, and conversational.`;
         defaultSystemPrompt += `\n\nCurrent Melbourne Weather Data:\n${weatherData}`;
       }
 
+      // Remove location/timezone info from system prompt to avoid oversharing
+      defaultSystemPrompt = defaultSystemPrompt.replace(/User Information:[\s\S]*?Timezone:.*?\n/g, '');
+
       const messages = [
         {
           role: 'system',

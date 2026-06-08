@@ -44,6 +44,39 @@ class DiscordCompanion {
 
         if (!isMentioned && !isDM) return;
 
+        // Get the message content without the mention
+        let messageContent = message.content;
+        if (isMentioned) {
+          messageContent = message.content.replace(/<@!?\d+>/g, '').trim();
+        }
+
+        // Handle voice channel commands
+        if (messageContent.toLowerCase() === 'join') {
+          const voiceChannel = message.member?.voice.channel;
+          if (voiceChannel) {
+            try {
+              await this.joinVoiceChannel(voiceChannel);
+              await message.reply(`✓ Joined your voice channel: ${voiceChannel.name}`);
+            } catch (error) {
+              await message.reply(`❌ Failed to join voice channel: ${error.message}`);
+            }
+          } else {
+            await message.reply('❌ You need to be in a voice channel first!');
+          }
+          return;
+        }
+
+        if (messageContent.toLowerCase() === 'leave') {
+          const guildId = message.guild.id;
+          if (this.voiceConnections.has(guildId)) {
+            this.leaveVoiceChannel(guildId);
+            await message.reply('✓ Left the voice channel');
+          } else {
+            await message.reply('❌ I\'m not in a voice channel');
+          }
+          return;
+        }
+
         // Show typing indicator
         await message.channel.sendTyping();
 
@@ -51,21 +84,21 @@ class DiscordCompanion {
         const userId = message.author.id;
 
         // Add user message to memory
-        this.memoryManager.addMessage(userId, 'user', message.content);
+        this.memoryManager.addMessage(userId, 'user', messageContent);
 
         // Get conversation context
         const context = this.memoryManager.getContextForAI(userId, 10);
 
         // Check if user is asking about weather
         let weatherData = null;
-        if (message.content.toLowerCase().includes('weather') || message.content.toLowerCase().includes('forecast')) {
+        if (messageContent.toLowerCase().includes('weather') || messageContent.toLowerCase().includes('forecast')) {
           const weatherService = new WeatherService();
           weatherData = await weatherService.getMelbourneWeather();
         }
 
         // Generate response
         const response = await this.ollamaClient.generateResponse(
-          message.content,
+          messageContent,
           context,
           null,
           weatherData
