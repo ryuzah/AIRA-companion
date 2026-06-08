@@ -10,7 +10,7 @@ class VoiceIO extends EventEmitter {
     this.piperVoice = options.piperVoice || 'en_US-amy-medium';
     this.sampleRate = options.sampleRate || 16000;
     this.audioDir = options.audioDir || './audio';
-    this.silenceThreshold = options.silenceThreshold || 1.0; // seconds of silence to stop recording
+    this.silenceThreshold = options.silenceThreshold || 2.0; // seconds of silence to stop recording
     
     // Create audio directory if it doesn't exist
     if (!fs.existsSync(this.audioDir)) {
@@ -98,22 +98,45 @@ class VoiceIO extends EventEmitter {
         errorOutput += data.toString();
       });
 
-      whisper.on('close', (code) => {
-        if (code === 0) {
-          // Whisper outputs to a .txt file
-          const txtFile = audioPath.replace('.wav', '.txt');
-          try {
-            const transcription = fs.readFileSync(txtFile, 'utf8').trim();
-            // Clean up the txt file
-            fs.unlinkSync(txtFile);
-            resolve(transcription);
-          } catch (error) {
-            reject(new Error(`Failed to read transcription: ${error.message}`));
-          }
-        } else {
-          reject(new Error(`Whisper error: ${errorOutput}`));
-        }
-      });
+       whisper.on('close', (code) => {
+         if (code === 0) {
+           // Whisper outputs to a .txt file with the same name as input
+           const baseName = audioPath.replace(/\.[^/.]+$/, ''); // Remove extension
+           const txtFile = baseName + '.txt';
+           
+           // Try to find the file (Whisper might output with different naming)
+           let transcriptionFile = null;
+           if (fs.existsSync(txtFile)) {
+             transcriptionFile = txtFile;
+           } else {
+             // Try looking in the audio directory with just the filename
+             const fileName = path.basename(baseName);
+             const altPath = path.join(this.audioDir, fileName + '.txt');
+             if (fs.existsSync(altPath)) {
+               transcriptionFile = altPath;
+             }
+           }
+           
+           if (transcriptionFile) {
+             try {
+               const transcription = fs.readFileSync(transcriptionFile, 'utf8').trim();
+               // Clean up the txt file
+               try {
+                 fs.unlinkSync(transcriptionFile);
+               } catch (e) {
+                 // Ignore cleanup errors
+               }
+               resolve(transcription);
+             } catch (error) {
+               reject(new Error(`Failed to read transcription: ${error.message}`));
+             }
+           } else {
+             reject(new Error(`Transcription file not found. Whisper may have failed silently.`));
+           }
+         } else {
+           reject(new Error(`Whisper error: ${errorOutput}`));
+         }
+       });
 
       whisper.on('error', (error) => {
         reject(new Error(`Failed to start Whisper: ${error.message}`));
