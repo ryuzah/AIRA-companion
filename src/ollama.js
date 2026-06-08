@@ -11,21 +11,23 @@ class OllamaClient {
   }
 
   // Generate response from Ollama
-  async generateResponse(prompt, context = [], systemPrompt = null) {
+  async generateResponse(prompt, context = [], systemPrompt = null, weatherData = null) {
     try {
       // Build messages array with system prompt and context
-      const defaultSystemPrompt = `You are Companion, a helpful AI assistant.
+      let defaultSystemPrompt = `You are Companion, a helpful AI assistant.
 
 User Information:
 - Location: Melbourne, Australia
 - Timezone: UTC+10 (Australian Eastern Time)
 
-When the user asks about weather:
-- Always provide Melbourne weather information
-- If you don't have real-time data, suggest checking weather.com or bom.gov.au (Bureau of Meteorology)
-- Remember the user is in Melbourne
+When the user asks about weather, provide the current Melbourne weather information.
 
 Be friendly, helpful, and conversational.`;
+
+      // If weather data is provided, include it in the system prompt
+      if (weatherData) {
+        defaultSystemPrompt += `\n\nCurrent Melbourne Weather Data:\n${weatherData}`;
+      }
 
       const messages = [
         {

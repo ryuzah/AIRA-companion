@@ -3,6 +3,7 @@ const MemoryManager = require('./src/memory');
 const OllamaClient = require('./src/ollama');
 const VoiceIO = require('./src/voiceIO');
 const DiscordCompanion = require('./src/discordBot');
+const WeatherService = require('./src/weather');
 const readline = require('readline');
 
 // Initialize components
@@ -18,6 +19,8 @@ const voiceIO = new VoiceIO({
   sampleRate: parseInt(process.env.SAMPLE_RATE || '16000'),
   audioDir: './audio'
 });
+
+const weatherService = new WeatherService();
 
 let discordBot = null;
 
@@ -109,7 +112,15 @@ async function startVoiceMode() {
         const result = await voiceIO.interactiveVoiceSession(
           async (userInput) => {
             const context = memoryManager.getContextForAI(userId, 10);
-            const response = await ollamaClient.generateResponse(userInput, context);
+            
+            // Check if user is asking about weather
+            let weatherData = null;
+            if (userInput.toLowerCase().includes('weather') || userInput.toLowerCase().includes('forecast')) {
+              console.log('📡 Fetching Melbourne weather...');
+              weatherData = await weatherService.getMelbourneWeather();
+            }
+            
+            const response = await ollamaClient.generateResponse(userInput, context, null, weatherData);
             memoryManager.addMessage(userId, 'user', userInput);
             memoryManager.addMessage(userId, 'assistant', response);
             return response;
